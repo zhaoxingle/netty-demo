@@ -4,15 +4,15 @@ import cn.itcast.message.*;
 import cn.itcast.protocol.MessageCodecSharable;
 import cn.itcast.protocol.ProcotolFrameDecoder;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
+import io.netty.handler.timeout.IdleStateHandler;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -38,9 +38,22 @@ public class ChatClient {
             bootstrap.handler(new ChannelInitializer<SocketChannel>() {
                 @Override
                 protected void initChannel(SocketChannel ch) throws Exception {
+
                     ch.pipeline().addLast(new ProcotolFrameDecoder());
                     ch.pipeline().addLast(LOGGING_HANDLER);
                     ch.pipeline().addLast(MESSAGE_CODEC);
+                    ch.pipeline().addLast(new IdleStateHandler(0, 3, 0));
+                    ch.pipeline().addLast(new ChannelDuplexHandler(){
+                        //客户端空闲状态处理器
+                        @Override
+                        public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+                            IdleStateEvent evt1 = (IdleStateEvent) evt;
+                            if (evt1.state()== IdleState.WRITER_IDLE) {
+                                log.debug("3s 没有写数据了，发送一个心跳包");
+                                ctx.writeAndFlush(new PingMessage());
+                            }
+                        };
+                    });
                     ch.pipeline().addLast("client handler", new ChannelInboundHandlerAdapter(){
                         //接受响应消息
                         @Override
